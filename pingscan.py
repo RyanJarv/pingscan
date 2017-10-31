@@ -25,8 +25,8 @@ def checksum(data):
     """Generates checksum for ICMP packet"""
     # reference: https://tools.ietf.org/html/rfc1071
 
-    #if len(data) % 4:
-    #    data += (0).to_bytes(2, byteorder="big", signed=False)
+    if len(data) % 2:
+        data += (0).to_bytes(1, byteorder="big", signed=False)
 
     d = []
     for i in range(0, len(data), 2):
@@ -45,29 +45,28 @@ def receive_ping(sock, packet_id, time_sent, timeout):
     while True:
         ready = select.select([sock], [], [], timeout)
         if ready[0] == []:
-            print("empty")
-            return
+            return None
         packet, addr = sock.recvfrom(1024)
         icmp_header = packet[20:28]
         type, code, checksum, p_id, sequence = struct.unpack(
                 'bbHHh', icmp_header)
         if p_id == packet_id:
             return time.time()
+    return None
 
 def create_packet(id):
     """Create new ICMP echo packet with the given ID"""
     header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, 0, id, socket.htons(1))
-
-    print("header: {0}".format(list(header)))
     data = ('A'*8).encode()
     cksum = checksum(header + data)
     header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, socket.htons(cksum), id, socket.htons(1))
 
     return header + data
 
-def icmp_scan(host):
-    """ICMP scan a given network"""
+def icmp_scan_host(host):
+    """ICMP scan a given host"""
     dest_addr = host.exploded
+    print("{}: ".format(dest_addr), end="")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP_CODE)
 
@@ -76,15 +75,23 @@ def icmp_scan(host):
     time_sent = time.time()
 
     while packet:
-        print("packet: {0}".format(list(packet)))
         sent = sock.sendto(packet, (dest_addr, 1))
         packet = packet[sent:]
 
     time_recv = receive_ping(sock, packet_id, time.time(), 5)
 
-    print("Delay: {0}".format(time_recv - time_sent))
-    
-    return
+    if time_recv:
+        ms = (time_recv - time_sent) * 1000
+        print("{0} ms".format(ms))
+    else:
+        print("! Timeout")
+
+def icmp_scan_net(net):
+    """"ICMP scan a given network"""
+
+    for host in net.hosts():
+        #import pdb; pdb.set_trace()
+        icmp_scan_host(host)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scan IP addresses with ICMP")
@@ -93,4 +100,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    icmp_scan(args.host)
+    if args.host:
+        icmp_scan_host(args.host)
+    else:
+        icmp_scan_net(args.network)
