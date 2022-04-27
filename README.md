@@ -10,5 +10,5 @@ for something in the RFC appeared to be backwards
 the best I could tell. I believe I sorted that out
 by just messing with random stuff until it worked.
 
-Not exactly professional, I know but neither was
+Not exactly professional I know, but neither was
 this project, so whatever. It still works.. I think.
